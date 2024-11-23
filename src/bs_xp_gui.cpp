@@ -253,6 +253,7 @@ namespace BrighterShoresXP {
         }
 
         void Draw(int current_exp, const char* title ){
+            ImGui::PushID( title );
             ImGui::SeparatorText( title );
             ImGui::Text( "Gained %d",  current_exp - start_exp );
             ImGui::Text( "XP/h %.2f",  xp_hour );
@@ -275,7 +276,7 @@ namespace BrighterShoresXP {
                 ImPlot::PlotLine("Xp/H", &exp_hour_history[1440-data_points], data_points);
                 ImPlot::EndPlot();
             }
-            ImGui::PushID( title );
+            
             if( ImGui::Button("Reset") ){
                 std::cout << "?" << std::endl;
                 reset = true;
