@@ -232,10 +232,11 @@ namespace BrighterShoresXP {
 
         int last_exp = 0;
         int last_action = 0;
+        int current_level = 0;
         int target_level = 500;
 
         int data_points = 0;
-        uint32_t exp_history[1440]; // 1 per minute = 24hrs
+        double exp_history[1440]; // 1 per minute = 24hrs
         double exp_hour_history[1440]; // 1 per minute = 24hrs
 
         void Update(int current_exp){
@@ -244,10 +245,21 @@ namespace BrighterShoresXP {
                 start_exp = current_exp;
                 last_exp = current_exp;
                 last_update = start_time;
+                current_level = 0;
+                int i = 0;
+                while( exp_table[i] < current_exp ){
+                    current_level += 1;
+                    i += 1;
+                }
+                target_level = current_level + 1;
+                
+                double exp_percent = get_exp_percent(current_exp);
+
                 for(int i = 0; i < 1440; i++){
-                     exp_history[i] = start_exp;
+                     exp_history[i] = exp_percent;
                      exp_hour_history[i] = 0.0;
                 }
+
                 reset = false;
                 data_points = 1;
             }
@@ -259,7 +271,12 @@ namespace BrighterShoresXP {
                 xp_hour = xp_diff / hours;
             }
 
-            if( last_exp != current_exp ) last_action = current_exp - last_exp;
+            if( last_exp != current_exp ) { //gained exp
+                last_action = current_exp - last_exp;
+                if( current_exp > exp_table[current_level] ){
+                    current_level += 1;
+                }
+            }
             last_exp = current_exp;
 
             if( current_time - last_update > 60){
@@ -268,17 +285,26 @@ namespace BrighterShoresXP {
                     exp_history[i] = exp_history[i+1];
                     exp_hour_history[i] = exp_hour_history[i+1];
                 }
-                exp_history[1439] = current_exp;
+                double exp_percent = get_exp_percent(current_exp);
+                exp_history[1439] = exp_percent;
                 exp_hour_history[1439] = xp_hour;
                 data_points += 1;
                 if (data_points >= 1440 ) data_points = 1440;
             }
         }
 
+        double get_exp_percent(int current_exp){
+            return (double)(current_exp - exp_table[current_level-1]) / (double)(exp_table[current_level] - exp_table[current_level-1]);
+        }
+
         void Draw(int current_exp, const char* title ){
             ImGui::PushID( title );
             ImGui::SeparatorText( title );
+            double exp_percent = get_exp_percent(current_exp);
+            ImGui::Text( "Lv %d (%.1f%%)",  current_level, exp_percent*100);
+            
             ImGui::Text( "Gained %d",  current_exp - start_exp );
+            ImGui::SameLine();
             ImGui::Text( "XP/h %.2f",  xp_hour );
             ImGui::InputInt("target level", &target_level);
             if( target_level <= 1 ) target_level = 1;
@@ -293,19 +319,25 @@ namespace BrighterShoresXP {
                 ImGui::SameLine();
                 ImGui::Text( "ETL % dxp", required_exp);
 
-
-
-                static ImPlotAxisFlags xflags = ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_NoHighlight;
+                static ImPlotAxisFlags xflags = (ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_NoHighlight) & ~ImPlotAxisFlags_NoTickMarks & ~ImPlotAxisFlags_NoGridLines;
                 static ImPlotAxisFlags yflags = ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_NoHighlight;
-                xflags ^= ImPlotAxisFlags_NoTickMarks;
-                xflags ^= ImPlotAxisFlags_NoGridLines;
-                const double tick_gap = 60;
+                static ImPlotAxisFlags yflags2 = ImPlotAxisFlags_NoLabel | ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_NoHighlight;
+                static double tick_gap[] = { 60,120,180,240,300,360,420,480,540,600,660,720,780,840,900,960,1020,1080,1140,1200,1260,1320,1380 };
                 if( ImPlot::BeginPlot("XP/h", ImVec2(-1,64), ImPlotFlags_::ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame) ){
 
-                    ImPlot::SetupAxisTicks(ImAxis_X1, &tick_gap,1,nullptr, false);
                     //ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
                     ImPlot::SetupAxes("Minutes","XP/h",xflags,yflags);
+                    ImPlot::SetupAxisTicks(ImAxis_X1, tick_gap, 22 ,nullptr, false); 
+                    ImPlot::SetupAxis(ImAxis_Y2, "Y-Axis 2", yflags2 );
+                    ImPlot::SetupAxisLimits(ImAxis_Y2, 0, 1);
+
+                    ImPlot::SetAxes(ImAxis_X1, ImAxis_Y1);             
                     ImPlot::PlotLine("Xp/H", &exp_hour_history[1440-data_points], data_points);
+
+                   
+                    ImPlot::SetAxes(ImAxis_X1, ImAxis_Y2);
+                    ImPlot::PlotLine("XP%", &exp_history[1440-data_points], data_points);
+
                     ImPlot::EndPlot();
                 }
             }
